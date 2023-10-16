@@ -1,0 +1,73 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressMessages(library("dplyr"))
+suppressMessages(library("tidyverse"))
+suppressMessages(library("purrr"))
+suppressMessages(library('readxl'))
+suppressMessages(library('openxlsx'))
+```
+
+```{r}
+setwd("~/Library/CloudStorage/OneDrive-UniversityofGeorgia/ShiyuanD/DataProcessing")
+```
+
+
+#24 Hours Data 
+```{r}
+data_med=read.csv("meds_w_order_inst.csv",header=T,na.strings="")
+data_med_use=na.omit(data_med[,c("PATIENT_DEID","ORDER_INST_DEID","DESCRIPTION","NAME","ROUTE","FREQ_NAME","MAR_TAKEN_TIME_DEID")])
+data_ICU_time=read.csv("ICU Stay Time.csv")%>%
+  dplyr::select(-ICU_stay_N)
+data_master_table<- read_excel("Master Table_Data Dictionary_12.2.22.xlsx")
+colnames(data_master_table)[1]<-'PATIENT_DEID'
+data_duplicateMed<-readRDS(file='DuplicateMed.rds')
+
+
+#taken in 24hours
+Taken_med_with_ICU_24h=merge(data_med_use,data_ICU_time,by="PATIENT_DEID",all.x=T,all.y=F)%>%
+  mutate(MAR_TAKEN_TIME_DEID=strptime(MAR_TAKEN_TIME_DEID,"%m/%d/%y %H:%M"),
+         start=strptime(start,"%Y-%m-%d %H:%M:%S"))%>%
+  filter(difftime(MAR_TAKEN_TIME_DEID,start,units="hours")<=24)
+
+
+#Filter med before ICU
+Taken_med_with_ICU_24h.0=Taken_med_with_ICU_24h%>%
+  filter(difftime(MAR_TAKEN_TIME_DEID,start,units="hours")>=0)
+
+
+
+
+#Select the patient in master table
+Taken_med_with_ICU_24h.1=Taken_med_with_ICU_24h.0%>%filter(PATIENT_DEID %in% data_master_table$PATIENT_DEID)
+
+length(unique(Taken_med_with_ICU_24h$PATIENT_DEID))
+length(unique(Taken_med_with_ICU_24h.0$PATIENT_DEID))
+length(unique(Taken_med_with_ICU_24h.1$PATIENT_DEID))
+length(unique(data_master_table$PATIENT_DEID))
+length(unique(Taken_med_with_ICU_24h.1$NAME))
+
+#saveRDS(Taken_med_with_ICU_72h.1, file = "Taken_med_with_ICU_72h.1.rds")
+```
+
+##Med IV
+```{r}
+IV_Med_Edits <- read_csv("IV Med List 5.11 KK Edits.csv")
+Med24hrsIV<-Taken_med_with_ICU_24h.1%>%filter(NAME %in% IV_Med_Edits$IV_Med)#edict med record
+
+```
+
+#Save Data
+```{r}
+write_csv(Taken_med_with_ICU_24h.1,file = '24HoursMed.csv')
+write_csv(Med24hrsIV,file = '24HoursMedIV.csv')
+
+```
+
